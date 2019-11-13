@@ -5,18 +5,27 @@ import os
 import errno
 from tornado.ioloop import IOLoop
 from tornado.platform.auto import set_close_exec
+import redis
 import instana
 import opentracing as ot
 import opentracing.ext.tags as ext
+from instana.tracer import InstanaTracer, InstanaRecorder
+from instana.singletons import agent, tracer
+
 
 os.environ['INSTANA_SERVICE_NAME'] = "UDPT"
 
 class UDPServer(object):
     def __init__(self, io_loop=None):
+        #span_recorder = InstanaRecorder()
+        #tracer = InstanaTracer(recorder=span_recorder)
+        ot.tracer = tracer
         self.io_loop = io_loop
         self._sockets = {}  # fd -> socket object
         self._pending_sockets = []
         self._started = False
+        self.r = redis.Redis()
+        self.counter = 0
 
     def add_sockets(self, sockets):
         if self.io_loop is None:
@@ -50,16 +59,21 @@ class UDPServer(object):
             sock.close()
 
     def _on_recive(self, data, address):
-        with ot.tracer.start_active_span('asteroid') as pscope:
+        parent_span = tracer.active_span
+        with ot.tracer.start_active_span('method on_receive', child_of=parent_span) as pscope:
             pscope.span.set_tag(ext.COMPONENT, "Python udp example app")
             pscope.span.set_tag(ext.SPAN_KIND, ext.SPAN_KIND_RPC_SERVER)
             pscope.span.set_tag(ext.PEER_HOSTNAME, "localhost")
             pscope.span.set_tag(ext.PEER_SERVICE, "Peer UDP Server Service")
             pscope.span.set_tag(ext.PEER_PORT, "80")
-            pscope.span.set_tag("Lutz RequestId", "0xdeadbeef")
-            pscope.span.set_tag("X-Peter-Header", "👀")
-            pscope.span.set_tag("X-Job-Id", "1947282")
-        print(data)
+            # pscope.span.set_tag("Lutz RequestId", "0xdeadbeef")
+            # pscope.span.set_tag("X-Peter-Header", "👀")
+            # pscope.span.set_tag("X-Job-Id", "1947282")
+        # print("before: ", self.r.get(self.counter))
+        self.r.set(str(self.counter), data)
+        # print("after:", self.r.get(self.counter))
+        self.counter = self.counter+1 
+        # print(self.r.keys())
 
 def bind_sockets(port, address=None, family=socket.AF_UNSPEC, backlog=25):
     sockets = []
