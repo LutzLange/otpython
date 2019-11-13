@@ -69,11 +69,11 @@ class UDPServer(object):
             # pscope.span.set_tag("Lutz RequestId", "0xdeadbeef")
             # pscope.span.set_tag("X-Peter-Header", "👀")
             # pscope.span.set_tag("X-Job-Id", "1947282")
-        # print("before: ", self.r.get(self.counter))
-        self.r.set(str(self.counter), data)
-        # print("after:", self.r.get(self.counter))
-        self.counter = self.counter+1 
-        # print(self.r.keys())
+            # print("before: ", self.r.get(self.counter))
+            self.r.set(str(self.counter), data)
+            # print("after:", self.r.get(self.counter))
+            self.counter = self.counter+1 
+            # print(self.r.keys())
 
 def bind_sockets(port, address=None, family=socket.AF_UNSPEC, backlog=25):
     sockets = []
