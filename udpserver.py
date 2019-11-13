@@ -9,7 +9,6 @@ import redis
 import instana
 import opentracing as ot
 import opentracing.ext.tags as ext
-#from instana.tracer import InstanaTracer, InstanaRecorder
 from instana.singletons import agent, tracer
 
 
