@@ -9,16 +9,14 @@ import redis
 import instana
 import opentracing as ot
 import opentracing.ext.tags as ext
-from instana.tracer import InstanaTracer, InstanaRecorder
+#from instana.tracer import InstanaTracer, InstanaRecorder
 from instana.singletons import agent, tracer
 
 
-os.environ['INSTANA_SERVICE_NAME'] = "UDPT"
+os.environ['INSTANA_SERVICE_NAME'] = "udpserver.py"
 
 class UDPServer(object):
     def __init__(self, io_loop=None):
-        #span_recorder = InstanaRecorder()
-        #tracer = InstanaTracer(recorder=span_recorder)
         ot.tracer = tracer
         self.io_loop = io_loop
         self._sockets = {}  # fd -> socket object
@@ -66,9 +64,6 @@ class UDPServer(object):
             pscope.span.set_tag(ext.PEER_HOSTNAME, "localhost")
             pscope.span.set_tag(ext.PEER_SERVICE, "Peer UDP Server Service")
             pscope.span.set_tag(ext.PEER_PORT, "80")
-            # pscope.span.set_tag("Lutz RequestId", "0xdeadbeef")
-            # pscope.span.set_tag("X-Peter-Header", "👀")
-            # pscope.span.set_tag("X-Job-Id", "1947282")
             # print("before: ", self.r.get(self.counter))
             self.r.set(str(self.counter), data)
             # print("after:", self.r.get(self.counter))
