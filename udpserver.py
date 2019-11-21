@@ -5,10 +5,11 @@ import os
 import errno
 from tornado.ioloop import IOLoop
 from tornado.platform.auto import set_close_exec
-import redis
+import pika
 import instana
 import opentracing as ot
 import opentracing.ext.tags as ext
+#from instana.tracer import InstanaTracer, InstanaRecorder
 from instana.singletons import agent, tracer
 
 
@@ -21,7 +22,8 @@ class UDPServer(object):
         self._sockets = {}  # fd -> socket object
         self._pending_sockets = []
         self._started = False
-        self.r = redis.Redis()
+        self._connection = ""
+        self._channel = ""
         self.counter = 0
 
     def add_sockets(self, sockets):
@@ -49,11 +51,15 @@ class UDPServer(object):
         sockets = self._pending_sockets
         self._pending_sockets = []
         self.add_sockets(sockets)
+        self.connection = pika.BlockingConnection(pika.ConnectionParameters(host='localhost'))
+        self.channel = self.connection.channel()
+        self.channel.exchange_declare(exchange='logs', exchange_type='fanout')
 
     def stop(self):
         for fd, sock in self._sockets.iteritems():
             self.io_loop.remove_handler(fd)
             sock.close()
+        self.connection.close()
 
     def _on_recive(self, data, address):
         parent_span = tracer.active_span
@@ -63,11 +69,15 @@ class UDPServer(object):
             pscope.span.set_tag(ext.PEER_HOSTNAME, "localhost")
             pscope.span.set_tag(ext.PEER_SERVICE, "Peer UDP Server Service")
             pscope.span.set_tag(ext.PEER_PORT, "80")
-            # print("before: ", self.r.get(self.counter))
-            self.r.set(str(self.counter), data)
-            # print("after:", self.r.get(self.counter))
-            self.counter = self.counter+1 
-            # print(self.r.keys())
+            with ot.tracer.start_active_span('RabbitMQ Client Log exchange', child_of=pscope.span) as cscope:
+                cscope.span.set_tag(ext.COMPONENT, "RabbitMQ Server")
+                cscope.span.set_tag(ext.SPAN_KIND, ext.SPAN_KIND_RPC_CLIENT)
+                cscope.span.set_tag(ext.PEER_HOSTNAME, "localhost")
+                cscope.span.set_tag(ext.PEER_SERVICE, "RabbitMQ")
+                cscope.span.set_tag(ext.PEER_PORT, "5672")
+                self.channel.basic_publish(exchange='logs', routing_key='', body=data)
+                # self.channel.basic_publish(exchange='logs', routing_key='', properties=pika.BasicProperties(headers=carrier), body=data)
+
 
 def bind_sockets(port, address=None, family=socket.AF_UNSPEC, backlog=25):
     sockets = []
